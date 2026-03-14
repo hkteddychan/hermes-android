@@ -1,62 +1,112 @@
 # hermes-android
 
-Android device control toolset for [hermes-agent](https://github.com/your-org/hermes-agent).
+Give your AI agent hands. Remote Android device control for [hermes-agent](https://github.com/NousResearch/hermes-agent).
 
-## Components
+## How it works
 
-- **Python package** (`tools/android_tool.py`) — 13 tools that register into hermes-agent's tool registry
-- **Android bridge app** (`hermes-android-bridge/`) — Kotlin app that runs on the phone, exposes HTTP API via AccessibilityService
+```
+Phone (home WiFi)  ──WebSocket──>  Hermes Server (cloud)  <──HTTP──  AI Agent
+                                   relay on port 8766
+```
+
+The phone connects **out** to your Hermes server — works behind any NAT, no port forwarding, no VPN, no USB. Just a 6-character pairing code.
+
+## Repository Structure
+
+This repo contains **two components**:
+
+| Component | Path | Language | Purpose |
+|-----------|------|----------|---------|
+| **Android bridge app** | `hermes-android-bridge/` | Kotlin | Runs on the phone. Connects to server via WebSocket, executes commands via AccessibilityService |
+| **Python toolset** | `tools/`, `tests/` | Python | Runs on the server. 14 `android_*` tools + WebSocket relay. Also lives in [hermes-agent](https://github.com/NousResearch/hermes-agent) as the production copy |
+
+> **Note:** The Python code exists here for standalone development and testing (`pip install -e .`, `pytest`). The production copy is in the hermes-agent repo. The Android app does not use or depend on the Python files.
 
 ## Quick Start
 
-### 1. Install the bridge app
-Build and install `hermes-android-bridge/` on your Android device via Android Studio.
+### 1. Install the bridge app on your phone
 
-### 2. Grant permissions
-- Enable Accessibility Service: Settings > Accessibility > Hermes Bridge
-- Grant overlay permission when prompted
-
-### 3. Connect
+Build with Android Studio or from command line:
 ```bash
-# USB (recommended)
-adb forward tcp:8765 tcp:8765
-export ANDROID_BRIDGE_URL=http://localhost:8765
-
-# Or WiFi
-export ANDROID_BRIDGE_URL=http://<phone-ip>:8765
+cd hermes-android-bridge
+./gradlew assembleDebug
+adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### 4. Install Python package
-```bash
-pip install -e .
-```
+### 2. Grant permissions on the phone
+- Open Hermes Bridge app
+- Tap **Enable Accessibility Service** → find Hermes Bridge → toggle ON
+- Tap **Enable Status Overlay** → grant permission
 
-### 5. Verify
-```bash
-curl http://localhost:8765/ping
-```
+### 3. Connect to your Hermes server
 
-## Tools
+Tell hermes (via Telegram, Discord, etc):
+```
+Connect to my phone, code is <CODE>
+```
+Where `<CODE>` is the 6-character pairing code shown in the app.
+
+Hermes will reply with the server address. Enter it in the app and tap **Connect**.
+
+### 4. Done
+The agent can now control your phone. Try: "open Instagram", "take a screenshot", "what apps do I have?"
+
+## Tools (14)
 
 | Tool | Description |
 |------|-------------|
-| `android_ping` | Check bridge connectivity |
-| `android_read_screen` | Get accessibility tree |
+| `android_setup` | Start relay and configure pairing code |
+| `android_ping` | Check if phone is connected |
+| `android_read_screen` | Get accessibility tree of current screen |
+| `android_screenshot` | Capture screenshot and send to user |
 | `android_tap` | Tap by coordinates or node ID |
-| `android_tap_text` | Tap by visible text |
-| `android_type` | Type into focused field |
-| `android_swipe` | Swipe gesture |
-| `android_open_app` | Launch app by package |
-| `android_press_key` | Press hardware/software key |
-| `android_screenshot` | Capture screenshot |
-| `android_scroll` | Scroll screen/element |
+| `android_tap_text` | Tap element by visible text |
+| `android_type` | Type into focused input field |
+| `android_swipe` | Swipe up/down/left/right |
+| `android_scroll` | Scroll screen or element |
+| `android_open_app` | Launch app by package name |
+| `android_press_key` | Press back, home, recents, etc. |
 | `android_wait` | Wait for element to appear |
 | `android_get_apps` | List installed apps |
-| `android_current_app` | Get foreground app |
+| `android_current_app` | Get foreground app info |
+
+## Architecture
+
+**Android app (Kotlin):**
+- AccessibilityService reads the UI tree and performs taps/types/swipes
+- WebSocket client (OkHttp) connects out to the Hermes server
+- Ktor HTTP server for local/USB development
+- Pairing code authentication
+- Screenshot capture via AccessibilityService API
+- Terminal-themed UI
+
+**Server (Python):**
+- WebSocket + HTTP relay (aiohttp) on port 8766
+- Tools register into hermes-agent's tool registry
+- Rate-limited authentication (5 attempts / 60s, then 5min block)
+- Auto-detects server public IP for setup instructions
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for details. Key points:
+- Pairing code authentication with rate limiting
+- Phone connects out (never directly exposed)
+- Currently unencrypted (`ws://`) — use TLS proxy for production
+- Full device access once paired — only connect to trusted servers
 
 ## Development
 
 ```bash
+# Python tests
 pip install -e ".[dev]"
 python -m pytest tests/
+
+# Android build
+cd hermes-android-bridge
+./gradlew assembleDebug
 ```
+
+## Links
+
+- **hermes-agent PR**: [NousResearch/hermes-agent#1345](https://github.com/NousResearch/hermes-agent/pull/1345)
+- **hermes-agent**: [github.com/NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent)
