@@ -13,6 +13,7 @@ def register(ctx):
     for tool_name, schema in _SCHEMAS.items():
         ctx.register_tool(
             name=tool_name,
+            toolset="android",
             schema=schema,
             handler=_HANDLERS[tool_name],
             check_fn=(lambda: True) if tool_name == "android_setup" else _check_requirements,
