@@ -17,29 +17,18 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Setup Android SDK
+        uses: nickolaspapadopoulos/android-sdk-action@v2
+        with:
+          api-level: 34
+          build-tools: 34.0.0
+          components: 'platforms;android-34,build-tools;34.0.0'
+
       - name: Build debug APK
-        env:
-          ANDROID_HOME: /opt/android-sdk
-          ANDROID_SDK_ROOT: /opt/android-sdk
         run: |
           cd hermes-android-bridge
-          # Fix gradlew permissions
           chmod +x gradlew
-          # Download gradle if needed
-          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
-            echo "Downloading gradle-wrapper.jar..."
-            curl -sL -o gradle/wrapper/gradle-wrapper.jar \
-              https://github.com/gradle/gradle/raw/v8.6.0/gradle/wrapper/gradle-wrapper.jar
-          fi
-          # Show environment
-          echo "Java version:"
-          java -version
-          echo "Gradlew content:"
-          head -5 gradlew
-          echo "Wrapper jar size:"
-          ls -la gradle/wrapper/
-          # Build with verbose output
-          ./gradlew assembleDebug --no-daemon --info 2>&1 | tail -100
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK
         if: success()
